@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>E-Commerce Logging — API Tester</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e1e4e8; padding: 24px; }
+
+    h1 { text-align: center; margin-bottom: 8px; font-size: 1.6rem; color: #fff; }
+    .subtitle { text-align: center; color: #8b949e; margin-bottom: 32px; font-size: 0.9rem; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; max-width: 1400px; margin: 0 auto; }
+
+    .service-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .service-header {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #30363d;
+    }
+    .service-header .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #484f58;
+    }
+    .service-header .dot.online { background: #3fb950; }
+    .service-header h2 { font-size: 1.1rem; color: #fff; }
+    .service-header .port { margin-left: auto; font-size: 0.8rem; color: #8b949e; font-family: monospace; }
+
+    .endpoint {
+      padding: 16px 20px;
+      border-bottom: 1px solid #21262d;
+    }
+    .endpoint:last-child { border-bottom: none; }
+
+    .endpoint-title {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+    }
+    .method {
+      font-size: 0.7rem; font-weight: 700; padding: 3px 8px;
+      border-radius: 4px; font-family: monospace;
+    }
+    .method.post { background: #1f6feb22; color: #58a6ff; border: 1px solid #1f6feb44; }
+    .method.get { background: #3fb95022; color: #3fb950; border: 1px solid #3fb95044; }
+    .method.patch { background: #d2992222; color: #d29922; border: 1px solid #d2992244; }
+    .endpoint-path { font-family: monospace; font-size: 0.85rem; color: #c9d1d9; }
+
+    .form-group { margin-bottom: 10px; }
+    .form-group label { display: block; font-size: 0.75rem; color: #8b949e; margin-bottom: 4px; }
+    .form-group input, .form-group select {
+      width: 100%; padding: 8px 12px;
+      background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+      color: #e1e4e8; font-size: 0.85rem; font-family: monospace;
+    }
+    .form-group input:focus, .form-group select:focus {
+      outline: none; border-color: #58a6ff;
+    }
+    .form-row { display: flex; gap: 10px; }
+    .form-row .form-group { flex: 1; }
+
+    button.send {
+      padding: 8px 20px; border: none; border-radius: 6px;
+      font-size: 0.85rem; font-weight: 600; cursor: pointer;
+      transition: all 0.15s;
+    }
+    button.send { background: #238636; color: #fff; }
+    button.send:hover { background: #2ea043; }
+    button.send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .response-box {
+      margin-top: 12px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      overflow: hidden;
+      display: none;
+    }
+    .response-box.visible { display: block; }
+    .response-header {
+      padding: 6px 12px;
+      display: flex; align-items: center; gap: 8px;
+      border-bottom: 1px solid #21262d;
+      font-size: 0.75rem;
+    }
+    .status-badge {
+      padding: 2px 8px; border-radius: 4px;
+      font-weight: 700; font-family: monospace; font-size: 0.75rem;
+    }
+    .status-badge.s2xx { background: #23863622; color: #3fb950; }
+    .status-badge.s4xx { background: #f8514922; color: #f85149; }
+    .status-badge.s5xx { background: #f8514922; color: #f85149; }
+    .response-time { color: #8b949e; margin-left: auto; }
+    .response-body {
+      padding: 12px;
+      font-family: monospace; font-size: 0.8rem;
+      white-space: pre-wrap; word-break: break-all;
+      max-height: 200px; overflow-y: auto;
+      color: #c9d1d9;
+    }
+
+    .health-row {
+      padding: 12px 20px;
+      display: flex; align-items: center; gap: 8px;
+      border-top: 1px solid #21262d;
+    }
+    .health-row button {
+      padding: 4px 12px; font-size: 0.75rem;
+      background: #21262d; color: #8b949e; border: 1px solid #30363d;
+      border-radius: 4px; cursor: pointer;
+    }
+    .health-row button:hover { color: #c9d1d9; border-color: #484f58; }
+    .health-status { font-size: 0.8rem; font-family: monospace; }
+
+    .tip {
+      max-width: 1400px; margin: 32px auto 0;
+      padding: 16px 20px;
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      font-size: 0.85rem; color: #8b949e;
+    }
+    .tip strong { color: #58a6ff; }
+  </style>
+</head>
+<body>
+
+  <h1>🛒 E-Commerce Logging — API Tester</h1>
+  <p class="subtitle">Test your services and watch structured JSON logs in the terminal</p>
+
+  <div class="grid">
+
+    <!-- ==================== AUTH SERVICE ==================== -->
+    <div class="service-card" id="auth-card">
+      <div class="service-header">
+        <div class="dot" id="auth-dot"></div>
+        <h2>🔐 Auth Service</h2>
+        <span class="port">:3001</span>
+      </div>
+
+      <!-- POST /login -->
+      <div class="endpoint">
+        <div class="endpoint-title">
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/login</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="auth-username" value="john" placeholder="john or admin">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="text" id="auth-password" value="pass123" placeholder="pass123 or admin456">
+          </div>
+        </div>
+        <button class="send" onclick="testLogin()">Send Request</button>
+        <div class="response-box" id="auth-login-response">
+          <div class="response-header">
+            <span class="status-badge" id="auth-login-status"></span>
+            <span class="response-time" id="auth-login-time"></span>
+          </div>
+          <div class="response-body" id="auth-login-body"></div>
+        </div>
+      </div>
+
+      <!-- Quick test buttons -->
+      <div class="endpoint">
+        <div class="endpoint-title">
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/login — Quick Tests</span>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="send" onclick="quickLogin('john','pass123')" style="font-size:0.75rem; padding: 6px 12px;">✅ Valid Login (john)</button>
+          <button class="send" onclick="quickLogin('admin','admin456')" style="font-size:0.75rem; padding: 6px 12px;">✅ Admin Login</button>
+          <button class="send" onclick="quickLogin('john','wrongpass')" style="font-size:0.75rem; padding: 6px 12px; background:#b62324;">❌ Wrong Password</button>
+          <button class="send" onclick="quickLogin('hacker','test')" style="font-size:0.75rem; padding: 6px 12px; background:#b62324;">❌ Unknown User</button>
+          <button class="send" onclick="bruteForce()" style="font-size:0.75rem; padding: 6px 12px; background:#b62324;">💀 Brute Force (6x)</button>
+        </div>
+        <div class="response-box" id="auth-quick-response">
+          <div class="response-header">
+            <span class="status-badge" id="auth-quick-status"></span>
+            <span class="response-time" id="auth-quick-time"></span>
+          </div>
+          <div class="response-body" id="auth-quick-body"></div>
+        </div>
+      </div>
+
+      <div class="health-row">
+        <button onclick="checkHealth('auth', 3001)">Check Health</button>
+        <span class="health-status" id="auth-health"></span>
+      </div>
+    </div>
+
+    <!-- ==================== ORDER SERVICE ==================== -->
+    <div class="service-card" id="order-card">
+      <div class="service-header">
+        <div class="dot" id="order-dot"></div>
+        <h2>🛒 Order Service</h2>
+        <span class="port">:3002</span>
+      </div>
+
+      <!-- POST /orders -->
+      <div class="endpoint">
+        <div class="endpoint-title">
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/orders</span>
+        </div>
+        <div class="form-group">
+          <label>User ID</label>
+          <input type="text" id="order-userid" value="USR-123">
+        </div>
+        <div class="form-group">
+          <label>Items (JSON array)</label>
+          <input type="text" id="order-items" value='[{"name":"Laptop","price":999.99,"quantity":1},{"name":"Mouse","price":29.99,"quantity":2}]'>
+        </div>
+        <button class="send" onclick="testCreateOrder()">Create Order</button>
+        <div class="response-box" id="order-create-response">
+          <div class="response-header">
+            <span class="status-badge" id="order-create-status"></span>
+            <span class="response-time" id="order-create-time"></span>
+          </div>
+          <div class="response-body" id="order-create-body"></div>
+        </div>
+      </div>
+
+      <!-- PATCH /orders/:id/status -->
+      <div class="endpoint">
+        <div class="endpoint-title">
+          <span class="method patch">PATCH</span>
+          <span class="endpoint-path">/orders/:id/status</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Order ID</label>
+            <input type="text" id="order-statusid" placeholder="ORD-XXXXXXXX">
+          </div>
+          <div class="form-group">
+            <label>New Status</label>
+            <select id="order-newstatus">
+              <option value="confirmed">confirmed</option>
+              <option value="shipped">shipped</option>
+              <option value="delivered">delivered</option>
+              <option value="cancelled">cancelled</option>
+            </select>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="send" onclick="testUpdateStatus()">Update Status</button>
+          <button class="send" onclick="testFullLifecycle()" style="font-size:0.75rem; background:#1f6feb;">🔄 Full Lifecycle (create → confirm → ship → deliver)</button>
+        </div>
+        <div class="response-box" id="order-status-response">
+          <div class="response-header">
+            <span class="status-badge" id="order-status-status"></span>
+            <span class="response-time" id="order-status-time"></span>
+          </div>
+          <div class="response-body" id="order-status-body"></div>
+        </div>
+      </div>
+
+      <!-- GET /orders/:id -->
+      <div class="endpoint">
+        <div class="endpoint-title">
+          <span class="method get">GET</span>
+          <span class="endpoint-path">/orders/:id</span>
+        </div>
+        <div class="form-group">
+          <label>Order ID</label>
+          <input type="text" id="order-getid" placeholder="ORD-XXXXXXXX (from create response)">
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="send" onclick="testGetOrder()">Get Order</button>
+          <button class="send" onclick="testGetOrder('ORD-FAKE')" style="font-size:0.75rem; background:#b62324;">❌ Get Non-Existent</button>
+        </div>
+        <div class="response-box" id="order-get-response">
+          <div class="response-header">
+            <span class="status-badge" id="order-get-status"></span>
+            <span class="response-time" id="order-get-time"></span>
+          </div>
+          <div class="response-body" id="order-get-body"></div>
+        </div>
+      </div>
+
+      <div class="health-row">
+        <button onclick="checkHealth('order', 3002)">Check Health</button>
+        <span class="health-status" id="order-health"></span>
+      </div>
+    </div>
+
+    <!-- ==================== NOTIFICATION SERVICE ==================== -->
+    <div class="service-card" id="notif-card">
+      <div class="service-header">
+        <div class="dot" id="notif-dot"></div>
+        <h2>📧 Notification Service</h2>
+        <span class="port">:3003</span>
+      </div>
+
+      <!-- POST /notify -->
+      <div class="endpoint">
+        <div class="endpoint-title">
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/notify</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Type</label>
+            <select id="notif-type">
+              <option value="email">email</option>
+              <option value="sms">sms</option>
+              <option value="push">push</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Recipient</label>
+            <input type="text" id="notif-recipient" value="john@mail.com">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Order ID</label>
+            <input type="text" id="notif-orderid" value="ORD-123">
+          </div>
+          <div class="form-group">
+            <label>Message</label>
+            <input type="text" id="notif-message" value="Your order is confirmed">
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="send" onclick="testNotify()">Send Notification</button>
+          <button class="send" onclick="spamNotify()" style="font-size:0.75rem; background:#1f6feb;">🔁 Send 10x (trigger errors)</button>
+        </div>
+        <div class="response-box" id="notif-response">
+          <div class="response-header">
+            <span class="status-badge" id="notif-status"></span>
+            <span class="response-time" id="notif-time"></span>
+          </div>
+          <div class="response-body" id="notif-body"></div>
+        </div>
+      </div>
+
+      <div class="health-row">
+        <button onclick="checkHealth('notif', 3003)">Check Health</button>
+        <span class="health-status" id="notif-health"></span>
+      </div>
+    </div>
+  </div>
+
+    <!-- ==================== LOG LEVEL ADMIN ==================== -->
+    <div class="service-card" id="admin-card">
+      <div class="service-header">
+        <div class="dot online" style="background: #d29922;"></div>
+        <h2>⚙️ Log Level Admin</h2>
+        <span class="port">Runtime Control</span>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-title">
+          <span class="method get">GET</span>
+          <span class="endpoint-path">/admin/log-level — Check Current Level</span>
+        </div>
+        <div class="form-group">
+          <label>Service</label>
+          <select id="admin-service-get">
+            <option value="3001">Auth Service (:3001)</option>
+            <option value="3002">Order Service (:3002)</option>
+            <option value="3003">Notification Service (:3003)</option>
+          </select>
+        </div>
+        <button class="send" onclick="getLogLevel()" style="background:#1f6feb;">Check Level</button>
+        <div class="response-box" id="admin-get-response">
+          <div class="response-header">
+            <span class="status-badge" id="admin-get-status"></span>
+            <span class="response-time" id="admin-get-time"></span>
+          </div>
+          <div class="response-body" id="admin-get-body"></div>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-title">
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/admin/log-level — Change Level at Runtime</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Service</label>
+            <select id="admin-service-set">
+              <option value="3001">Auth Service (:3001)</option>
+              <option value="3002">Order Service (:3002)</option>
+              <option value="3003">Notification Service (:3003)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>New Level</label>
+            <select id="admin-level">
+              <option value="fatal">fatal (0) — System cannot continue</option>
+              <option value="error">error (1) — Operation failed</option>
+              <option value="warn">warn (2) — Unexpected but handled</option>
+              <option value="info" selected>info (3) — Business events (prod default)</option>
+              <option value="debug">debug (4) — Internal details (dev default)</option>
+              <option value="trace">trace (5) — Ultra-granular diagnostic</option>
+            </select>
+          </div>
+        </div>
+        <button class="send" onclick="changeLogLevel()">Change Level</button>
+        <div class="response-box" id="admin-set-response">
+          <div class="response-header">
+            <span class="status-badge" id="admin-set-status"></span>
+            <span class="response-time" id="admin-set-time"></span>
+          </div>
+          <div class="response-body" id="admin-set-body"></div>
+        </div>
+      </div>
+
+      <div class="endpoint" style="background: #1c2129; border-top: 1px solid #30363d;">
+        <div style="font-size: 0.8rem; color: #8b949e;">
+          <strong style="color:#d29922;">Try this:</strong> Set auth-service to <code>trace</code>, then login.
+          Watch the terminal — you'll see TRACE logs showing request parsing details
+          that are normally invisible. Then set it back to <code>info</code>.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="tip">
+    <strong>💡 Tip:</strong> Keep your terminal visible side-by-side. Watch for <code>log_type</code> field to identify log categories:
+    <span style="color:#58a6ff">access</span> (server),
+    <span style="color:#3fb950">event</span> (domain),
+    <span style="color:#d29922">security</span> (auth),
+    <span style="color:#f85149">database</span> (MongoDB).
+    New in Part 3: watch for <code>module</code> field — it tells you which child logger produced the log.
+    Try: <strong>⚙️ Log Level Admin</strong> to change log verbosity at runtime without restarting.
+  </div>
+
+<script>
+  // ─── Helper: make API call and display result ───
+  async function apiCall(url, options, responsePrefix) {
+    const statusEl = document.getElementById(`${responsePrefix}-status`);
+    const timeEl = document.getElementById(`${responsePrefix}-time`);
+    const bodyEl = document.getElementById(`${responsePrefix}-body`);
+    const boxEl = document.getElementById(`${responsePrefix}-response`);
+
+    boxEl.classList.add('visible');
+    bodyEl.textContent = 'Loading...';
+    statusEl.textContent = '...';
+    statusEl.className = 'status-badge';
+
+    const start = performance.now();
+    try {
+      const res = await fetch(url, options);
+      const elapsed = Math.round(performance.now() - start);
+      const data = await res.json();
+
+      statusEl.textContent = res.status;
+      statusEl.classList.add(res.status < 300 ? 's2xx' : res.status < 500 ? 's4xx' : 's5xx');
+      timeEl.textContent = `${elapsed}ms`;
+      bodyEl.textContent = JSON.stringify(data, null, 2);
+
+      return { status: res.status, data };
+    } catch (err) {
+      statusEl.textContent = 'ERR';
+      statusEl.classList.add('s5xx');
+      timeEl.textContent = '';
+      bodyEl.textContent = `Connection failed: ${err.message}\n\nIs the service running?`;
+      return null;
+    }
+  }
+
+  // ─── Auth Service ───
+  async function testLogin() {
+    const username = document.getElementById('auth-username').value;
+    const password = document.getElementById('auth-password').value;
+    await apiCall('http://localhost:3001/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    }, 'auth-login');
+  }
+
+  async function quickLogin(username, password) {
+    await apiCall('http://localhost:3001/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    }, 'auth-quick');
+  }
+
+  // Brute force simulation — sends 6 failed logins from same origin
+  // Watch terminal for: SECURITY: Suspicious activity detected (after 5th attempt)
+  async function bruteForce() {
+    const boxEl = document.getElementById('auth-quick-response');
+    const bodyEl = document.getElementById('auth-quick-body');
+    const statusEl = document.getElementById('auth-quick-status');
+    const timeEl = document.getElementById('auth-quick-time');
+    boxEl.classList.add('visible');
+    bodyEl.textContent = 'Sending 6 failed login attempts...\n';
+
+    for (let i = 1; i <= 6; i++) {
+      try {
+        const res = await fetch('http://localhost:3001/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'hacker', password: `attempt${i}` })
+        });
+        const data = await res.json();
+        bodyEl.textContent += `#${i} → ${res.status} ${data.error || data.message}` +
+          (i === 5 ? '  ⚠️ SUSPICIOUS_ACTIVITY logged!' : '') + '\n';
+      } catch (err) {
+        bodyEl.textContent += `#${i} → ERR ${err.message}\n`;
+      }
+    }
+    statusEl.textContent = '6/6 failed';
+    statusEl.className = 'status-badge s4xx';
+    timeEl.textContent = 'Check terminal for SECURITY logs';
+  }
+
+  // ─── Order Service ───
+  async function testCreateOrder() {
+    const user_id = document.getElementById('order-userid').value;
+    let items;
+    try {
+      items = JSON.parse(document.getElementById('order-items').value);
+    } catch (e) {
+      alert('Invalid JSON in items field');
+      return;
+    }
+    const result = await apiCall('http://localhost:3002/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id, items })
+    }, 'order-create');
+
+    // Auto-fill order ID in GET and STATUS fields
+    if (result && result.data && result.data.order_id) {
+      document.getElementById('order-getid').value = result.data.order_id;
+      document.getElementById('order-statusid').value = result.data.order_id;
+    }
+  }
+
+  // Update order status
+  async function testUpdateStatus() {
+    const order_id = document.getElementById('order-statusid').value;
+    const status = document.getElementById('order-newstatus').value;
+    if (!order_id) { alert('Create an order first'); return; }
+    await apiCall(`http://localhost:3002/orders/${order_id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    }, 'order-status');
+  }
+
+  // Full order lifecycle: create → confirmed → shipped → delivered
+  // Watch terminal for 4x EVENT: ORDER_STATUS_CHANGED logs
+  async function testFullLifecycle() {
+    const boxEl = document.getElementById('order-status-response');
+    const bodyEl = document.getElementById('order-status-body');
+    const statusEl = document.getElementById('order-status-status');
+    const timeEl = document.getElementById('order-status-time');
+    boxEl.classList.add('visible');
+    bodyEl.textContent = 'Running full lifecycle...\n\n';
+
+    // Step 1: Create order
+    const createRes = await fetch('http://localhost:3002/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: 'USR-LIFECYCLE', items: [{ name: 'Test Item', price: 19.99, quantity: 1 }] })
+    });
+    const order = await createRes.json();
+    const id = order.order_id;
+    document.getElementById('order-statusid').value = id;
+    document.getElementById('order-getid').value = id;
+    bodyEl.textContent += `1. Created:   ${id} (pending)\n`;
+
+    // Step 2-4: Transition through states
+    const transitions = ['confirmed', 'shipped', 'delivered'];
+    for (let i = 0; i < transitions.length; i++) {
+      const res = await fetch(`http://localhost:3002/orders/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: transitions[i] })
+      });
+      const data = await res.json();
+      const ok = res.status === 200;
+      bodyEl.textContent += `${i + 2}. ${ok ? '✅' : '❌'} → ${transitions[i]}  (${res.status})\n`;
+    }
+
+    bodyEl.textContent += '\n✅ Full lifecycle complete!\nCheck terminal for ORDER_STATUS_CHANGED events.';
+    statusEl.textContent = '200';
+    statusEl.className = 'status-badge s2xx';
+    timeEl.textContent = 'Lifecycle complete';
+  }
+
+  async function testGetOrder(fakeId) {
+    const order_id = fakeId || document.getElementById('order-getid').value;
+    if (!order_id) {
+      alert('Create an order first, or enter an Order ID');
+      return;
+    }
+    await apiCall(`http://localhost:3002/orders/${order_id}`, {
+      method: 'GET'
+    }, 'order-get');
+  }
+
+  // ─── Notification Service ───
+  async function testNotify() {
+    const type = document.getElementById('notif-type').value;
+    const recipient = document.getElementById('notif-recipient').value;
+    const order_id = document.getElementById('notif-orderid').value;
+    const message = document.getElementById('notif-message').value;
+    await apiCall('http://localhost:3003/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, recipient, order_id, message })
+    }, 'notif');
+  }
+
+  async function spamNotify() {
+    const type = document.getElementById('notif-type').value;
+    const recipient = document.getElementById('notif-recipient').value;
+    const order_id = document.getElementById('notif-orderid').value;
+    const message = document.getElementById('notif-message').value;
+
+    const boxEl = document.getElementById('notif-response');
+    const bodyEl = document.getElementById('notif-body');
+    const statusEl = document.getElementById('notif-status');
+    const timeEl = document.getElementById('notif-time');
+    boxEl.classList.add('visible');
+
+    let results = [];
+    for (let i = 0; i < 10; i++) {
+      try {
+        const res = await fetch('http://localhost:3003/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, recipient, order_id, message })
+        });
+        const data = await res.json();
+        results.push({ attempt: i + 1, status: res.status, result: data.status || data.error });
+      } catch (err) {
+        results.push({ attempt: i + 1, status: 'ERR', result: err.message });
+      }
+    }
+
+    const successes = results.filter(r => r.status === 200).length;
+    const failures = results.filter(r => r.status !== 200).length;
+
+    statusEl.textContent = `${successes}/10`;
+    statusEl.className = 'status-badge ' + (failures > 0 ? 's4xx' : 's2xx');
+    timeEl.textContent = `${successes} sent, ${failures} failed`;
+    bodyEl.textContent = results.map(r =>
+      `#${r.attempt.toString().padStart(2, '0')}  ${r.status === 200 ? '✅' : '❌'}  ${r.status}  ${r.result}`
+    ).join('\n');
+  }
+
+  // ─── Health Checks ───
+  async function checkHealth(service, port) {
+    const el = document.getElementById(`${service}-health`);
+    const dot = document.getElementById(`${service}-dot`);
+    el.textContent = 'checking...';
+    try {
+      const res = await fetch(`http://localhost:${port}/health`);
+      const data = await res.json();
+      el.textContent = `✅ ${data.status}`;
+      el.style.color = '#3fb950';
+      dot.classList.add('online');
+    } catch {
+      el.textContent = '❌ offline';
+      el.style.color = '#f85149';
+      dot.classList.remove('online');
+    }
+  }
+
+  // ─── Log Level Admin ───
+  async function getLogLevel() {
+    const port = document.getElementById('admin-service-get').value;
+    await apiCall(`http://localhost:${port}/admin/log-level`, { method: 'GET' }, 'admin-get');
+  }
+
+  async function changeLogLevel() {
+    const port = document.getElementById('admin-service-set').value;
+    const level = document.getElementById('admin-level').value;
+    await apiCall(`http://localhost:${port}/admin/log-level`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level })
+    }, 'admin-set');
+  }
+
+  // Auto-check health on page load
+  window.addEventListener('load', () => {
+    checkHealth('auth', 3001);
+    checkHealth('order', 3002);
+    checkHealth('notif', 3003);
+  });
+</script>
+</body>
+</html>

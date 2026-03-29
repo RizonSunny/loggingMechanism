@@ -1,0 +1,25 @@
+{
+  "name": "ecommerce-logging",
+  "version": "1.0.0",
+  "description": "Multi-service e-commerce backend for learning logging",
+  "private": true,
+  "scripts": {
+    "dev:auth": "node services/auth-service/index.js",
+    "dev:order": "node services/order-service/index.js",
+    "dev:notification": "node services/notification-service/index.js",
+    "dev:ui": "node server.js",
+    "dev:all": "concurrently \"npm run dev:ui\" \"npm run dev:auth\" \"npm run dev:order\" \"npm run dev:notification\""
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^4.18.2",
+    "mongoose": "^7.8.0",
+    "morgan": "^1.10.1",
+    "serve-handler": "^6.1.7",
+    "uuid": "^9.0.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
