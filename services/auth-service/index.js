@@ -5,10 +5,17 @@ const { createMorganMiddleware } = require('../../shared/morgan-stream');
 const { createSecurityLogger } = require('../../shared/security-logger');
 const { createEventLogger } = require('../../shared/event-logger');
 const { connectDatabase } = require('../../shared/database');
+const { correlationMiddleware } = require('../../shared/correlation-middleware');
+const { asyncLocalStorage } = require('../../shared/async-context');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ─── Part 4: Correlation ID middleware ──────────────────────
+// Must be BEFORE route handlers so every request gets a trace_id
+// before any logging happens.
+app.use(correlationMiddleware);
 
 // ─── INITIALIZE LOGGERS ────────────────────────────────────
 // Parent logger for the service — carries { service: 'auth-service' }
@@ -50,7 +57,7 @@ const loginAttempts = {};
 //   warn   → auth failure (via securityLogger)
 //   error  → suspicious activity (via securityLogger)
 // -------------------------------------------------------
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
   process.stderr.write('\n\x1b[1m\x1b[33m═══════════ POST /login | auth | auth-service ═══════════\x1b[0m\n');
   const { username, password } = req.body;
   const ip = req.ip;
@@ -93,6 +100,38 @@ app.post('/login', (req, res) => {
 
   // INFO — business outcome: login succeeded
   authLogger.info('Login successful', { username, role: user.role });
+
+  // ── Part 4: Cross-service call with trace_id propagation ──
+  // After login, we call Order Service to create a welcome order.
+  // The KEY line: we forward the trace_id via x-trace-id header.
+  // This is how correlation works across services.
+  const store = asyncLocalStorage.getStore();
+  const traceId = store?.trace_id;
+
+  authLogger.debug('Calling order-service with trace_id', { trace_id: traceId });
+
+  try {
+    const orderResponse = await fetch('http://localhost:3002/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // ★ THIS IS THE KEY: pass trace_id to the next service
+        'x-trace-id': traceId,
+      },
+      body: JSON.stringify({
+        user_id: username,
+        items: [{ name: 'Welcome Gift', price: 0, quantity: 1 }],
+      }),
+    });
+
+    const orderData = await orderResponse.json();
+    authLogger.info('Welcome order created via order-service', {
+      order_id: orderData.order_id,
+    });
+  } catch (err) {
+    // WARN, not ERROR — the login itself succeeded, this is a secondary action
+    authLogger.warn('Failed to create welcome order', { error: err.message });
+  }
 
   res.json({ message: 'Login successful', token: 'fake-jwt-token', role: user.role });
 });

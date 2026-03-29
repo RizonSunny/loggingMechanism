@@ -5,10 +5,15 @@ const { createMultiLevelLogger, createChildLogger, setLogLevel, getLogLevel } = 
 const { createMorganMiddleware } = require('../../shared/morgan-stream');
 const { createEventLogger } = require('../../shared/event-logger');
 const { connectDatabase } = require('../../shared/database');
+const { correlationMiddleware } = require('../../shared/correlation-middleware');
+const { asyncLocalStorage } = require('../../shared/async-context');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ─── Part 4: Correlation ID middleware ──────────────────────
+app.use(correlationMiddleware);
 
 // ─── INITIALIZE LOGGERS ────────────────────────────────────
 // Uses createMultiLevelLogger for custom levels (fatal/trace) + runtime control + child loggers
@@ -45,7 +50,7 @@ const VALID_TRANSITIONS = {
 //   debug  → computed values (totals, IDs)
 //   info   → business outcome (order created)
 // -------------------------------------------------------
-app.post('/orders', (req, res) => {
+app.post('/orders', async (req, res) => {
   process.stderr.write('\n\x1b[1m\x1b[33m═══════════ POST /orders | orders | order-service ═══════════\x1b[0m\n');
   const { user_id, items } = req.body;
 
@@ -91,6 +96,29 @@ app.post('/orders', (req, res) => {
     total_amount,
     item_count: items.length,
   });
+
+  // ── Part 4: Call notification-service with same trace_id ──
+  const store = asyncLocalStorage.getStore();
+  const traceId = store?.trace_id;
+
+  try {
+    await fetch('http://localhost:3003/notify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-trace-id': traceId,  // ★ propagate trace_id to next service
+      },
+      body: JSON.stringify({
+        type: 'email',
+        recipient: user_id,
+        order_id,
+        message: `Order ${order_id} created successfully`,
+      }),
+    });
+    orderLogger.info('Notification sent for order', { order_id });
+  } catch (err) {
+    orderLogger.warn('Failed to send notification', { order_id, error: err.message });
+  }
 
   res.status(201).json(order);
 });

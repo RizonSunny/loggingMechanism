@@ -1,8 +1,10 @@
 const winston = require('winston');
 const os = require('os');
+const { asyncLocalStorage } = require('./async-context');
 
 /**
  * Multi-Level Logger — Part 3 Enhancement
+ * Part 4 Addition: Auto-injects trace_id from AsyncLocalStorage
  *
  * WHY THIS EXISTS (separate from logger.js):
  * ────────────────────────────────────────────
@@ -129,12 +131,23 @@ function createMultiLevelLogger({ service, version = '1.0.0' }) {
       // When you log an Error object, extract its stack trace into the log
       winston.format.errors({ stack: true }),
 
-      // Add standard fields to EVERY log entry
+      // Add standard fields to EVERY log entry (field enrichment)
       winston.format((info) => {
         info.service = service;
         info.environment = environment;
         info.version = version;
         info.host = os.hostname();
+        return info;
+      })(),
+
+      // ── Part 4: Auto-inject trace_id from AsyncLocalStorage ──
+      // This reads the current request's trace_id without any manual passing.
+      // If no AsyncLocalStorage context exists (e.g., startup logs), trace_id is simply absent.
+      winston.format((info) => {
+        const store = asyncLocalStorage.getStore();
+        if (store?.trace_id) {
+          info.trace_id = store.trace_id;
+        }
         return info;
       })(),
 

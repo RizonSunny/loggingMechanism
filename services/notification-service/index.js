@@ -3,10 +3,14 @@ const cors = require('cors');
 const { createMultiLevelLogger, createChildLogger, setLogLevel, getLogLevel } = require('../../shared/multiLevelLogger');
 const { createMorganMiddleware } = require('../../shared/morgan-stream');
 const { createEventLogger } = require('../../shared/event-logger');
+const { correlationMiddleware } = require('../../shared/correlation-middleware');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ─── Part 4: Correlation ID middleware ──────────────────────
+app.use(correlationMiddleware);
 
 // ─── INITIALIZE LOGGERS ────────────────────────────────────
 // Uses createMultiLevelLogger for custom levels (fatal/trace) + runtime control + child loggers
