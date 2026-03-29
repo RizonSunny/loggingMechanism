@@ -51,7 +51,7 @@ const loginAttempts = {};
 //   error  → suspicious activity (via securityLogger)
 // -------------------------------------------------------
 app.post('/login', (req, res) => {
-  console.log('\n═══════════ POST /login | auth | auth-service ═══════════');
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ POST /login | auth | auth-service ═══════════\x1b[0m\n');
   const { username, password } = req.body;
   const ip = req.ip;
 
@@ -134,7 +134,7 @@ function trackFailedAttempt(ip) {
  * Useful for checking state before/after a change.
  */
 app.get('/admin/log-level', (req, res) => {
-  console.log('\n═══════════ GET /admin/log-level | auth | auth-service ═══════════');
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ GET /admin/log-level | auth | auth-service ═══════════\x1b[0m\n');
   const levelInfo = getLogLevel();
   authLogger.debug('Log level queried', { current_level: levelInfo.current });
   res.json(levelInfo);
@@ -151,7 +151,7 @@ app.get('/admin/log-level', (req, res) => {
  * For now, we log the change as an admin action for audit trail.
  */
 app.post('/admin/log-level', (req, res) => {
-  console.log('\n═══════════ POST /admin/log-level | auth | auth-service ═══════════');
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ POST /admin/log-level | auth | auth-service ═══════════\x1b[0m\n');
   const { level } = req.body;
 
   if (!level) {
@@ -184,6 +184,7 @@ app.post('/admin/log-level', (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ GET /health | auth | auth-service ═══════════\x1b[0m\n');
   res.json({
     status: 'ok',
     service: 'auth-service',

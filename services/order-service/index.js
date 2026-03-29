@@ -46,7 +46,7 @@ const VALID_TRANSITIONS = {
 //   info   → business outcome (order created)
 // -------------------------------------------------------
 app.post('/orders', (req, res) => {
-  console.log('\n═══════════ POST /orders | orders | order-service ═══════════');
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ POST /orders | orders | order-service ═══════════\x1b[0m\n');
   const { user_id, items } = req.body;
 
   // TRACE — what exact data did we receive? (deep diagnostic only)
@@ -104,7 +104,7 @@ app.post('/orders', (req, res) => {
 //   info   → status change applied (business event)
 // -------------------------------------------------------
 app.patch('/orders/:id/status', (req, res) => {
-  console.log('\n═══════════ PATCH /orders/:id/status | orders | order-service ═══════════');
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ PATCH /orders/:id/status | orders | order-service ═══════════\x1b[0m\n');
   const { status: newStatus } = req.body;
   const order = orders.find(o => o.order_id === req.params.id);
 
@@ -165,7 +165,7 @@ app.patch('/orders/:id/status', (req, res) => {
 // GET /orders/:id
 // -------------------------------------------------------
 app.get('/orders/:id', (req, res) => {
-  console.log('\n═══════════ GET /orders/:id | orders | order-service ═══════════');
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ GET /orders/:id | orders | order-service ═══════════\x1b[0m\n');
   const order = orders.find(o => o.order_id === req.params.id);
 
   if (!order) {
@@ -181,12 +181,12 @@ app.get('/orders/:id', (req, res) => {
 
 // ─── ADMIN: Runtime log level management ────────────────────
 app.get('/admin/log-level', (req, res) => {
-  console.log('\n═══════════ GET /admin/log-level | orders | order-service ═══════════');
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ GET /admin/log-level | orders | order-service ═══════════\x1b[0m\n');
   res.json(getLogLevel());
 });
 
 app.post('/admin/log-level', (req, res) => {
-  console.log('\n═══════════ POST /admin/log-level | orders | order-service ═══════════');
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ POST /admin/log-level | orders | order-service ═══════════\x1b[0m\n');
   const { level } = req.body;
   if (!level) {
     return res.status(400).json({ error: 'Missing "level" field in request body' });
@@ -207,6 +207,7 @@ app.post('/admin/log-level', (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ GET /health | orders | order-service ═══════════\x1b[0m\n');
   res.json({ status: 'ok', service: 'order-service' });
 });
 

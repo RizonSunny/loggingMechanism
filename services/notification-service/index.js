@@ -32,7 +32,7 @@ const PORT = process.env.PORT || 3003;
 //   error  → delivery failure (actual failure that needs attention)
 // -------------------------------------------------------
 app.post('/notify', (req, res) => {
-  console.log('\n═══════════ POST /notify | delivery | notification-service ═══════════');
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ POST /notify | delivery | notification-service ═══════════\x1b[0m\n');
   const { type, recipient, order_id, message } = req.body;
 
   // TRACE — raw request details (deep diagnostic)
@@ -89,12 +89,12 @@ app.post('/notify', (req, res) => {
 
 // ─── ADMIN: Runtime log level management ────────────────────
 app.get('/admin/log-level', (req, res) => {
-  console.log('\n═══════════ GET /admin/log-level | delivery | notification-service ═══════════');
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ GET /admin/log-level | delivery | notification-service ═══════════\x1b[0m\n');
   res.json(getLogLevel());
 });
 
 app.post('/admin/log-level', (req, res) => {
-  console.log('\n═══════════ POST /admin/log-level | delivery | notification-service ═══════════');
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ POST /admin/log-level | delivery | notification-service ═══════════\x1b[0m\n');
   const { level } = req.body;
   if (!level) {
     return res.status(400).json({ error: 'Missing "level" field in request body' });
@@ -115,6 +115,7 @@ app.post('/admin/log-level', (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ GET /health | delivery | notification-service ═══════════\x1b[0m\n');
   res.json({ status: 'ok', service: 'notification-service' });
 });
 
