@@ -1,6 +1,7 @@
 const winston = require('winston');
 const os = require('os');
 const { asyncLocalStorage } = require('./async-context');
+const { createRotateTransport, createErrorRotateTransport } = require('./rotate-transport');
 
 /**
  * Multi-Level Logger — Part 3 Enhancement
@@ -156,7 +157,27 @@ function createMultiLevelLogger({ service, version = '1.0.0' }) {
     ),
 
     transports: [
-      new winston.transports.Console()
+      // ── Transport 1: Console (stdout) ──────────────────────
+      // Always present. In Docker, this is what `docker logs` captures.
+      // In development, this is what you see in your terminal.
+      new winston.transports.Console(),
+
+      // ── Transport 2: Daily rotating file (Part 5) ──────────
+      // Writes ALL logs to date-stamped files with:
+      //   - Daily rotation (new file each day)
+      //   - 20MB max size per file (splits if exceeded)
+      //   - gzip compression of rotated files
+      //   - Auto-delete after 14 days
+      // File: logs/{service}-2026-03-30.log
+      createRotateTransport({ service }),
+
+      // ── Transport 3: Error-only rotating file (Part 5) ─────
+      // Separate file containing ONLY error and fatal logs.
+      // During incidents, grep this file instead of wading through
+      // thousands of info/debug lines.
+      // File: logs/{service}-error-2026-03-30.log
+      // Retention: 30 days (longer than general logs)
+      createErrorRotateTransport({ service }),
     ],
 
     // Don't crash the app if logging itself fails

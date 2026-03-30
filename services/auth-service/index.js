@@ -7,6 +7,7 @@ const { createEventLogger } = require('../../shared/event-logger');
 const { connectDatabase } = require('../../shared/database');
 const { correlationMiddleware } = require('../../shared/correlation-middleware');
 const { asyncLocalStorage } = require('../../shared/async-context');
+const { createAuditLogger } = require('../../shared/audit-logger');
 
 const app = express();
 app.use(cors());
@@ -31,6 +32,12 @@ const dbLogger = createChildLogger(logger, 'database');
 // Security and event loggers now use the auth child logger for proper module tagging
 const securityLogger = createSecurityLogger(authLogger);
 const eventLogger = createEventLogger(authLogger);
+
+// ─── Part 5: Audit logger (append-only, compliance) ─────
+// Separate from application logs. Records WHO did WHAT, WHEN.
+// 90-day retention, hash-chained for tamper evidence.
+// File: logs/audit/auth-service-audit-2026-03-30.log
+const audit = createAuditLogger({ service: 'auth-service' });
 
 // ─── SERVER LOG: Morgan HTTP access logging ────────────────
 // Morgan logs go through the parent logger (no module tag needed — they have log_type: "access")
@@ -98,6 +105,21 @@ app.post('/login', async (req, res) => {
   // EVENT LOG (INFO) — domain event for analytics/downstream systems
   eventLogger.emit('USER_LOGIN', { username, role: user.role, ip });
 
+  // ── Part 5: AUDIT LOG — compliance record of login ──────
+  // This goes to a separate append-only file (logs/audit/).
+  // It records the fact that a specific user authenticated,
+  // with the trace_id for cross-referencing with application logs.
+  const store = asyncLocalStorage.getStore();
+  audit.record({
+    actor: username,
+    action: 'LOGIN',
+    resource: `user:${username}`,
+    outcome: 'success',
+    ip,
+    trace_id: store?.trace_id,
+    details: { role: user.role },
+  });
+
   // INFO — business outcome: login succeeded
   authLogger.info('Login successful', { username, role: user.role });
 
@@ -105,7 +127,7 @@ app.post('/login', async (req, res) => {
   // After login, we call Order Service to create a welcome order.
   // The KEY line: we forward the trace_id via x-trace-id header.
   // This is how correlation works across services.
-  const store = asyncLocalStorage.getStore();
+  // (reusing 'store' from the audit log block above)
   const traceId = store?.trace_id;
 
   authLogger.debug('Calling order-service with trace_id', { trace_id: traceId });
@@ -211,6 +233,18 @@ app.post('/admin/log-level', (req, res) => {
     authLogger.warn('Invalid log level change attempted', { requested: level });
     return res.status(400).json(result);
   }
+
+  // ── Part 5: AUDIT LOG — admin configuration change ──────
+  // Changing log levels is an operational action that affects visibility.
+  // Auditors need to know: who changed what, when, and from what previous state.
+  audit.record({
+    actor: 'admin',           // In real app: extract from JWT
+    action: 'CHANGE_LOG_LEVEL',
+    resource: 'system:log-config',
+    outcome: 'success',
+    ip: req.ip,
+    details: { from: result.previous_level, to: result.level },
+  });
 
   authLogger.info('Log level changed via admin endpoint', {
     new_level: result.level,

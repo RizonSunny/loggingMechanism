@@ -31,7 +31,16 @@ ecommerce-logging/
 │   ├── morgan-stream.js             → Morgan-to-Winston bridge (access logs)
 │   ├── database.js                  → MongoDB connection + query logging
 │   ├── event-logger.js              → Domain event logger
-│   └── security-logger.js           → Security/auth event logger
+│   ├── security-logger.js           → Security/auth event logger
+│   ├── async-context.js             → Shared AsyncLocalStorage instance (Part 4)
+│   ├── correlation-middleware.js     → Trace ID generation + propagation (Part 4)
+│   ├── rotate-transport.js          → Daily rotating file transport factory (Part 5)
+│   └── audit-logger.js              → Append-only compliance audit logger (Part 5)
+├── logs/                            → Generated log files (gitignored)
+│   ├── {service}-{date}.log         → All logs, daily rotation, 14d retention
+│   ├── {service}-error-{date}.log   → Error-only logs, 30d retention
+│   └── audit/
+│       └── {service}-audit-{date}.log → Audit trail, 90d retention, hash-chained
 └── services/
     ├── auth-service/                → Authentication (port 3001)
     │   ├── index.js
@@ -106,6 +115,90 @@ Built on top of Part 2 with the **full industry-standard log level spectrum** an
 | production | `info` | `LOG_LEVEL` env var |
 | test | `warn` | `LOG_LEVEL` env var |
 
+### Part 4 — Correlation IDs & Async Context
+
+Added **cross-service request tracing** using correlation IDs (trace_id) that propagate across service boundaries, powered by Node.js AsyncLocalStorage.
+
+**The problem solved:** When a login request triggers calls to order-service and notification-service, how do you find ALL logs from ALL services for that single user action? Without correlation, you'd be searching three different log streams with no way to connect them.
+
+**How it works:**
+
+```
+User → POST /login → auth-service (trace_id: abc-123)
+                          │
+                          ├→ POST /orders → order-service (x-trace-id: abc-123)
+                          │                      │
+                          │                      └→ POST /notify → notification-service (x-trace-id: abc-123)
+                          │
+                          └→ All 3 services log trace_id: "abc-123"
+                             → Search Kibana: trace_id:"abc-123" → full request story
+```
+
+**Key features built:**
+- `asyncLocalStorage` (async-context.js) — Shared AsyncLocalStorage instance so trace_id follows async operations automatically without manual passing
+- `correlationMiddleware` (correlation-middleware.js) — Express middleware that generates or accepts `x-trace-id`, stores it in AsyncLocalStorage, and returns it in response headers
+- Auto-injection in `multiLevelLogger.js` — Logger format reads trace_id from AsyncLocalStorage context, zero manual effort in business code
+- Cross-service propagation — Services forward `x-trace-id` header when calling other services
+
+**Trace ID flow per request:**
+1. Request arrives → middleware checks for `x-trace-id` header
+2. If present → reuse it (request came from another service)
+3. If absent → generate new UUID (this is the origin service)
+4. Store in AsyncLocalStorage → available to all async code in this request
+5. Logger format auto-reads it → every log entry gets `trace_id` field
+6. Outbound HTTP calls forward it via `x-trace-id` header
+
+### Part 5 — Log Rotation & Retention Policies
+
+Added **file-based log rotation** with compression, retention policies, Docker log driver configuration, and a compliance-ready audit logger.
+
+**The problem solved:** Without rotation, log files grow unbounded until the disk fills up — crashing the database, Docker daemon, and the services themselves. Part 5 adds size limits, automatic cleanup, and tiered retention.
+
+**Log file structure:**
+
+```
+logs/
+  auth-service-2026-03-30.log            ← ALL logs (active, uncompressed)
+  auth-service-2026-03-29.log.gz         ← Yesterday (rotated, compressed ~10:1)
+  auth-service-error-2026-03-30.log      ← Errors only (separate file for fast incident response)
+  audit/
+    auth-service-audit-2026-03-30.log    ← Compliance audit trail (hash-chained)
+```
+
+**Three transport layers per service:**
+
+| Transport | Destination | Level | Retention | Compression |
+|-----------|-------------|-------|-----------|-------------|
+| Console | stdout (Docker captures) | All | Docker `max-size: 10m × 3` | No |
+| Daily Rotate File | `logs/{service}-{date}.log` | All | 14 days | gzip on rotate |
+| Error Rotate File | `logs/{service}-error-{date}.log` | error + fatal only | 30 days | gzip on rotate |
+| Audit File | `logs/audit/{service}-audit-{date}.log` | audit (always) | 90 days | gzip on rotate |
+
+**Key features built:**
+- `createRotateTransport()` (rotate-transport.js) — Factory for daily-rotating Winston file transports with hybrid rotation (time + size), gzip compression, and configurable retention
+- `createErrorRotateTransport()` — Separate error-only transport with longer 30-day retention
+- `createAuditLogger()` (audit-logger.js) — Append-only audit logger with:
+  - Single `record()` method (no update/delete — enforced immutability at API level)
+  - Fixed schema: actor, action, resource, outcome, ip, trace_id, details
+  - SHA-256 hash chaining for tamper evidence (each entry hashes with previous)
+  - 90-day retention for compliance (SOC2/PCI-DSS)
+- Docker Compose log driver — `json-file` with `max-size: 10m` and `max-file: 3` on every service (prevents host disk overflow from container stdout)
+- Named Docker volumes (`auth-logs`, `order-logs`, `notification-logs`) — persists Winston log files across container restarts
+
+**Retention policy:**
+
+| Log Category | Retention | Rationale |
+|--------------|-----------|-----------|
+| Application logs | 14 days | 95% of bugs found within 2 weeks |
+| Error logs | 30 days | Longer retention for postmortem investigations |
+| Audit logs | 90 days | SOC2 minimum recommendation |
+
+**Compliance concepts covered (conceptual):**
+- GDPR — PII minimization in logs, automated retention-based deletion, documented legal basis per log category
+- Immutable audit logs — append-only API, hash chaining, write-once storage
+- Encryption at rest — filesystem-level (LUKS/BitLocker), application-level, storage-level (S3 SSE)
+- Hot/Warm/Cold storage tiers — cost optimization by matching storage speed to data age
+
 ## Quick Start
 
 ```bash
@@ -146,6 +239,32 @@ curl -X POST http://localhost:3001/admin/log-level \
 
 # Check current level
 curl http://localhost:3001/admin/log-level
+```
+
+## Testing Log Rotation & Audit (Part 5)
+
+```bash
+# Start the auth service
+npm run dev:auth
+
+# Trigger a login (creates audit entry + app/error log files)
+curl -X POST http://localhost:3001/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin456"}'
+
+# Trigger an admin action (creates audit entry)
+curl -X POST http://localhost:3001/admin/log-level \
+  -H "Content-Type: application/json" \
+  -d '{"level":"trace"}'
+
+# Check generated log files
+cat logs/auth-service-2026-03-30.log          # All logs
+cat logs/auth-service-error-2026-03-30.log    # Errors only
+cat logs/audit/auth-service-audit-2026-03-30.log  # Audit trail with hash chain
+
+# Verify hash chain integrity (each entry's previous_hash matches prior entry's hash)
+# Entry 1: previous_hash = "GENESIS" (first entry)
+# Entry 2: previous_hash = Entry 1's hash
 ```
 
 ## Log Output Format

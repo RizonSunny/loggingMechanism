@@ -14,6 +14,15 @@ services:
       - auth-service
       - order-service
       - notification-service
+    # ── Part 5: Docker log driver with rotation ──────────────
+    # Docker captures everything written to stdout/stderr.
+    # Without max-size, this grows unbounded on the host disk.
+    # json-file is Docker's default driver — we just add limits.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"   # Rotate when the Docker log hits 10MB
+        max-file: "3"     # Keep at most 3 rotated files (30MB max per container)
 
   auth-service:
     build:
@@ -28,6 +37,17 @@ services:
     restart: on-failure
     networks:
       - ecommerce-network
+    # ── Part 5: Docker log rotation ──────────────────────────
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # ── Part 5: Persist application log files across restarts ─
+    # Winston writes to ./logs/ inside the container.
+    # This volume mounts it to the host so logs survive container recreation.
+    volumes:
+      - auth-logs:/app/logs
 
   order-service:
     build:
@@ -44,6 +64,13 @@ services:
       - ecommerce-network
     depends_on:
       - auth-service
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - order-logs:/app/logs
 
   notification-service:
     build:
@@ -61,6 +88,22 @@ services:
     depends_on:
       - auth-service
       - order-service
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - notification-logs:/app/logs
+
+# ── Part 5: Named volumes for log persistence ──────────────
+# Named volumes persist across `docker-compose down` and `up`.
+# Docker manages their location on the host (typically /var/lib/docker/volumes/).
+# To inspect: docker volume inspect ecommerce-logging_auth-logs
+volumes:
+  auth-logs:
+  order-logs:
+  notification-logs:
 
 networks:
   ecommerce-network:
