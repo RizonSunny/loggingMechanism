@@ -4,10 +4,10 @@ const { createMultiLevelLogger, createChildLogger, setLogLevel, getLogLevel } = 
 const { createMorganMiddleware } = require('../../shared/morgan-stream');
 const { createSecurityLogger } = require('../../shared/security-logger');
 const { createEventLogger } = require('../../shared/event-logger');
-const { connectDatabase } = require('../../shared/database');
 const { correlationMiddleware } = require('../../shared/correlation-middleware');
 const { asyncLocalStorage } = require('../../shared/async-context');
 const { createAuditLogger } = require('../../shared/audit-logger');
+const { connectDatabase } = require('../../shared/database');
 
 const app = express();
 app.use(cors());
@@ -133,7 +133,7 @@ app.post('/login', async (req, res) => {
   authLogger.debug('Calling order-service with trace_id', { trace_id: traceId });
 
   try {
-    const orderResponse = await fetch('http://localhost:3002/orders', {
+    const orderResponse = await fetch('http://order-service:3002/orders', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -267,6 +267,7 @@ app.get('/health', (req, res) => {
 // ─── START SERVER + CONNECT DB ─────────────────────────────
 app.listen(PORT, async () => {
   // INFO — service lifecycle event (business-relevant: "is the service running?")
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ START SERVER | auth | auth-service ═══════════\x1b[0m\n');
   logger.info('Service started', {
     port: PORT,
     log_level: getLogLevel().current,

@@ -124,6 +124,7 @@ app.get('/health', (req, res) => {
 });
 
 app.listen(PORT, () => {
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ START SERVER | delivery | notification-service ═══════════\x1b[0m\n');
   logger.info('Service started', {
     port: PORT,
     log_level: getLogLevel().current,

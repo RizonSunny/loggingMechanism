@@ -1,5 +1,15 @@
 
 services:
+  mongodb:
+    image: mongo:7
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    networks:
+      - ecommerce-network
+    logging:
+      driver: "none"
+
   frontend:
     build:
       context: .
@@ -31,9 +41,12 @@ services:
     container_name: auth-service
     ports:
       - "3001:3001"
+    depends_on:
+      - mongodb
     environment:
       - NODE_ENV=development
       - PORT=3001
+      - MONGO_URI=mongodb://mongodb:27017/ecommerce
     restart: on-failure
     networks:
       - ecommerce-network
@@ -56,14 +69,16 @@ services:
     container_name: order-service
     ports:
       - "3002:3002"
+    depends_on:
+      - mongodb
+      - auth-service
     environment:
       - NODE_ENV=development
       - PORT=3002
+      - MONGO_URI=mongodb://mongodb:27017/ecommerce
     restart: on-failure
     networks:
       - ecommerce-network
-    depends_on:
-      - auth-service
     logging:
       driver: json-file
       options:
@@ -82,10 +97,12 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=3003
+      - MONGO_URI=mongodb://mongodb:27017/ecommerce
     restart: on-failure
     networks:
       - ecommerce-network
     depends_on:
+      - mongodb
       - auth-service
       - order-service
     logging:

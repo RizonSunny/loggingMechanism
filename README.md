@@ -200,6 +200,7 @@ logs/
 - Hot/Warm/Cold storage tiers — cost optimization by matching storage speed to data age
 
 ## Quick Start
+### Run manually
 
 ```bash
 # Install dependencies
@@ -213,8 +214,10 @@ npm run dev:auth          # Auth service on :3001
 npm run dev:order         # Order service on :3002
 npm run dev:notification  # Notification service on :3003
 npm run dev:ui            # Frontend UI on :3000
+```
 
-# Run with Docker
+### Run with Docker
+```bash
 docker-compose up --build
 ```
 

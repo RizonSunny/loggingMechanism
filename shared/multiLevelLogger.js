@@ -136,8 +136,8 @@ function createMultiLevelLogger({ service, version = '1.0.0' }) {
       winston.format((info) => {
         info.service = service;
         info.environment = environment;
-        info.version = version;
-        info.host = os.hostname();
+        // info.version = version;
+        // info.host = os.hostname();
         return info;
       })(),
 
@@ -152,8 +152,23 @@ function createMultiLevelLogger({ service, version = '1.0.0' }) {
         return info;
       })(),
 
-      // Final output: JSON (machine-readable for ELK)
-      winston.format.json()
+      // Final output: JSON with controlled field order
+      // message and level appear first for readability in terminal/Kibana
+      winston.format.printf((info) => {
+        const { message, level, timestamp, trace_id, service, environment, module: mod, ...rest } = info;
+        console.log("DDD - ", trace_id);
+        const ordered = {
+          message,
+          level,
+          timestamp,
+          service,
+          ...(mod && { module: mod }),
+          ...(trace_id && { trace_id }),
+          environment,
+          ...rest,
+        };
+        return JSON.stringify(ordered);
+      })
     ),
 
     transports: [

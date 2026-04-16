@@ -102,7 +102,7 @@ app.post('/orders', async (req, res) => {
   const traceId = store?.trace_id;
 
   try {
-    await fetch('http://localhost:3003/notify', {
+    await fetch('http://notification-service:3003/notify', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -241,6 +241,7 @@ app.get('/health', (req, res) => {
 
 // ─── START SERVER + CONNECT DB ─────────────────────────────
 app.listen(PORT, async () => {
+  process.stderr.write('\n\x1b[1m\x1b[33m═══════════ START SERVER | orders | order-service ═══════════\x1b[0m\n');
   logger.info('Service started', {
     port: PORT,
     log_level: getLogLevel().current,
