@@ -22,6 +22,8 @@ ecommerce-logging/
 ├── .gitignore
 ├── PART-2-CHANGELOG.md              → Part 2 detailed changes
 ├── PART-3-CHANGELOG.md              → Part 3 detailed changes
+├── PART-4-CHANGELOG.md              → Part 4 detailed changes
+├── PART-5-CHANGELOG.md              → Part 5 detailed changes
 ├── public/
 │   ├── index.html                   → Interactive API tester UI
 │   └── Dockerfile
