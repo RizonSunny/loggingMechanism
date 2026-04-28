@@ -64,8 +64,8 @@ function createRotateTransport({
   const transport = new DailyRotateFile({
     // ── FILE NAMING ────────────────────────────────────────
     // %DATE% is replaced by the current date in datePattern format.
-    // Result: logs/auth-service-2026-03-30.log
-    filename: path.join(logDir, `${service}-%DATE%.log`),
+    // Result: logs/auth-service/auth-service-2026-03-30.log
+    filename: path.join(logDir, service, `${service}-%DATE%.log`),
 
     // ── DATE PATTERN ───────────────────────────────────────
     // YYYY-MM-DD = daily rotation. Use YYYY-MM-DD-HH for hourly.

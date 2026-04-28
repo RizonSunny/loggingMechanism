@@ -58,9 +58,9 @@ services:
       # Logstash config file
       - ./logstash/pipeline.conf:/usr/share/logstash/pipeline/logstash.conf
       # Mount log directories from services (same bind mounts as services)
-      - ./logs/auth-service:/app/logs/auth-service
-      - ./logs/order-service:/app/logs/order-service
-      - ./logs/notification-service:/app/logs/notification-service
+      - auth-logs-elk:/logs/auth-service
+      - order-logs-elk:/logs/order-service
+      - notification-logs-elk:/logs/notification-service
     depends_on:
       - elasticsearch
     networks:
@@ -114,7 +114,7 @@ services:
         max-size: "10m"
         max-file: "3"
     volumes:
-      - ./logs/auth-service:/app/logs
+      - auth-logs-elk:/app/logs/auth-service
 
   # ─────────────────────────────────────────────────────────
   # ORDER-SERVICE
@@ -142,7 +142,7 @@ services:
         max-size: "10m"
         max-file: "3"
     volumes:
-      - ./logs/order-service:/app/logs
+      - order-logs-elk:/app/logs/order-service
 
   # ─────────────────────────────────────────────────────────
   # NOTIFICATION-SERVICE
@@ -171,7 +171,7 @@ services:
         max-size: "10m"
         max-file: "3"
     volumes:
-      - ./logs/notification-service:/app/logs
+      - notification-logs-elk:/app/logs/notification-service
 
 # ─────────────────────────────────────────────────────────
 # VOLUMES — Persist data across container restarts
