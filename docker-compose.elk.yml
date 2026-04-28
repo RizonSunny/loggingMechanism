@@ -1,0 +1,190 @@
+services:
+  # ─────────────────────────────────────────────────────────
+  # DATABASE
+  # ─────────────────────────────────────────────────────────
+  mongodb-elk:
+    image: mongo:7
+    container_name: mongodb-elk
+    ports:
+      - "27017:27017"
+    networks:
+      - elk-network
+    logging:
+      driver: "none"
+
+  # ─────────────────────────────────────────────────────────
+  # ELASTICSEARCH — Stores and indexes logs
+  # ─────────────────────────────────────────────────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.0.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    networks:
+      - elk-network
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+
+  # ─────────────────────────────────────────────────────────
+  # KIBANA — UI for searching and visualizing logs
+  # ─────────────────────────────────────────────────────────
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.0.0
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    networks:
+      - elk-network
+
+  # ─────────────────────────────────────────────────────────
+  # LOGSTASH — Collects logs from services and sends to ES
+  # ─────────────────────────────────────────────────────────
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.0.0
+    container_name: logstash
+    ports:
+      - "5000:5000/tcp"
+      - "5000:5000/udp"
+    environment:
+      - "LS_JAVA_OPTS=-Xmx256m -Xms256m"
+    volumes:
+      # Logstash config file
+      - ./logstash/pipeline.conf:/usr/share/logstash/pipeline/logstash.conf
+      # Mount log directories from services (same bind mounts as services)
+      - ./logs/auth-service:/app/logs/auth-service
+      - ./logs/order-service:/app/logs/order-service
+      - ./logs/notification-service:/app/logs/notification-service
+    depends_on:
+      - elasticsearch
+    networks:
+      - elk-network
+
+  # ─────────────────────────────────────────────────────────
+  # FRONTEND
+  # ─────────────────────────────────────────────────────────
+  frontend-elk:
+    build:
+      context: .
+      dockerfile: public/Dockerfile
+    container_name: frontend-elk
+    ports:
+      - "3000:3000"
+    restart: on-failure
+    networks:
+      - elk-network
+    depends_on:
+      - auth-service-elk
+      - order-service-elk
+      - notification-service-elk
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ─────────────────────────────────────────────────────────
+  # AUTH-SERVICE
+  # ─────────────────────────────────────────────────────────
+  auth-service-elk:
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
+    container_name: auth-service-elk
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongodb-elk
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - MONGO_URI=mongodb://mongodb-elk:27017/ecommerce
+    restart: on-failure
+    networks:
+      - elk-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - ./logs/auth-service:/app/logs
+
+  # ─────────────────────────────────────────────────────────
+  # ORDER-SERVICE
+  # ─────────────────────────────────────────────────────────
+  order-service-elk:
+    build:
+      context: .
+      dockerfile: services/order-service/Dockerfile
+    container_name: order-service-elk
+    ports:
+      - "3002:3002"
+    depends_on:
+      - mongodb-elk
+      - auth-service-elk
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - MONGO_URI=mongodb://mongodb-elk:27017/ecommerce
+    restart: on-failure
+    networks:
+      - elk-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - ./logs/order-service:/app/logs
+
+  # ─────────────────────────────────────────────────────────
+  # NOTIFICATION-SERVICE
+  # ─────────────────────────────────────────────────────────
+  notification-service-elk:
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+    container_name: notification-service-elk
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=development
+      - PORT=3003
+      - MONGO_URI=mongodb://mongodb-elk:27017/ecommerce
+    restart: on-failure
+    networks:
+      - elk-network
+    depends_on:
+      - mongodb-elk
+      - auth-service-elk
+      - order-service-elk
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - ./logs/notification-service:/app/logs
+
+# ─────────────────────────────────────────────────────────
+# VOLUMES — Persist data across container restarts
+# ─────────────────────────────────────────────────────────
+volumes:
+  elasticsearch-data:
+  auth-logs-elk:
+  order-logs-elk:
+  notification-logs-elk:
+
+# ─────────────────────────────────────────────────────────
+# NETWORK — Separate from default ecommerce-network
+# ─────────────────────────────────────────────────────────
+networks:
+  elk-network:
+    driver: bridge

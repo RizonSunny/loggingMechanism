@@ -11,6 +11,9 @@ RUN npm ci
 # Copy entire project (including shared modules)
 COPY . .
 
+# Create logs directory
+RUN mkdir -p /app/logs
+
 # Expose port
 EXPOSE 3003
 
